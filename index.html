@@ -8,118 +8,107 @@
 </head>
 <body class="bg-[#0a0a0a] text-white min-h-screen p-4 flex justify-center">
 <div class="w-full max-w-lg">
-
   <div class="text-center mt-6 mb-6">
     <div class="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-3"><i class="fas fa-bolt text-xl text-black"></i></div>
     <h1 class="text-2xl font-bold">AI.COM <span class="text-emerald-400">POWERED</span></h1>
     <p class="text-xs text-zinc-500 mt-1">Internal Powered Registry + Real RDAP Check</p>
   </div>
-
   <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
     <input id="idea" placeholder="Andika biashara yako: kitchen, safari, mtaani..." class="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500">
     <input id="github" placeholder="GitHub URL (optional): github.com/user/repo" class="w-full mt-2 bg-black border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-zinc-600">
     <button id="gen" class="w-full mt-4 bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl">Tengeneza na Check Majina 🚀</button>
     <label class="flex items-center gap-2 mt-3 text-xs text-zinc-400"><input id="onlyFree" type="checkbox" class="accent-emerald-500"> Onyesha yaliyo wazi tu</label>
   </div>
-
   <div id="summary" class="text-xs text-zinc-400 mt-3 text-center"></div>
   <div id="results" class="mt-3 space-y-2"></div>
-
-  <!-- POWERED SECTION -->
   <div class="bg-zinc-900 border border-emerald-900/50 rounded-2xl p-4 mt-6">
     <h3 class="font-bold text-sm"><i class="fas fa-database text-emerald-400 mr-2"></i>My Powered Registry</h3>
     <p class="text-[11px] text-zinc-500 mb-3">Domains zimewashwa ndani ya system yako - zinadumu</p>
     <div id="poweredList" class="space-y-2"></div>
   </div>
-
   <p class="text-[10px] text-zinc-600 text-center mt-6">Powered by Mtaani Tech • Internal Registry + RDAP • KES 130</p>
 </div>
-
 <script>
-// === POWERED SYSTEM DATABASE ===
 const DB_KEY = 'mtaani_powered_v2';
 const getDB = () => JSON.parse(localStorage.getItem(DB_KEY) || '[]');
 const saveDB = (db) => { localStorage.setItem(DB_KEY, JSON.stringify(db)); renderPowered(); };
-
 const PREFIXES = ['get','try','my','go','use','hey'];
 const SUFFIXES = ['ly','hub','io','pro','spot','lab','base','ify'];
 function clean(s){ return (s||'').toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,' ').trim(); }
 function generateNames(input, githubUrl){
-  let source = input;
-  if (!clean(source) && githubUrl) source = githubUrl.replace(/\/+$/,'').split('/').pop().replace(/[-_.]/g,' ');
-  const words = clean(source).split(' ').filter(w => w.length > 1);
-  if (!words.length) return [];
-  const main = words[0]; const joined = words.join('');
-  const set = new Set([joined, main]);
+  let source = input; if (!clean(source) && githubUrl) source = githubUrl.replace(/\/+$/,'').split('/').pop().replace(/[-_.]/g,' ');
+  const words = clean(source).split(' ').filter(w => w.length > 1); if (!words.length) return [];
+  const main = words[0]; const joined = words.join(''); const set = new Set([joined, main]);
   if (words.length > 1){ set.add(words.join('-')); set.add(words[0] + words[1]); }
-  PREFIXES.forEach(p => set.add(p + joined));
-  SUFFIXES.forEach(s => set.add(main + s));
+  PREFIXES.forEach(p => set.add(p + joined)); SUFFIXES.forEach(s => set.add(main + s));
   if (words.length > 1) set.add(joined + 'ke'); set.add(main + 'ke');
   return Array.from(set).map(n => n.replace(/[^a-z0-9-]/g,'').replace(/^-+|-+$/g,'').substring(0, 20)).filter(n => n.length >= 3).slice(0, 14).map(n => n + '.com');
 }
-
 async function checkDomain(domain){
-  // First check internal POWERED DB
-  const db = getDB();
-  const powered = db.find(d => d.name === domain);
+  const db = getDB(); const powered = db.find(d => d.name === domain);
   if(powered) return { state: 'powered', owner: powered.owner, date: powered.date };
-
   try {
     const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
     const r = await fetch('https://rdap.verisign.com/com/v1/domain/' + encodeURIComponent(domain), { headers: { 'Accept': 'application/rdap+json' }, signal: ctrl.signal });
     clearTimeout(t);
     if (r.status === 404) return { state: 'free' };
-    if (r.status === 200) {
-      let expires = null; try { const j = await r.json(); const ev = (j.events || []).find(e => e.eventAction === 'expiration'); if (ev) expires = ev.eventDate.slice(0, 10); } catch {}
-      return { state: 'taken', expires };
-    } throw new Error('status ' + r.status);
+    if (r.status === 200) { let expires = null; try { const j = await r.json(); const ev = (j.events || []).find(e => e.eventAction === 'expiration'); if (ev) expires = ev.eventDate.slice(0, 10); } catch {} return { state: 'taken', expires }; }
+    throw new Error('status ' + r.status);
   } catch (e) {
-    try {
-      const r = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(domain) + '&type=NS');
-      const j = await r.json(); if (j.Status === 3) return { state: 'free', soft: true }; return { state: 'taken' };
-    } catch { return { state: 'unknown' }; }
+    try { const r = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(domain) + '&type=NS'); const j = await r.json(); if (j.Status === 3) return { state: 'free', soft: true }; return { state: 'taken' }; } catch { return { state: 'unknown' }; }
   }
 }
-
 function row(domain){
   const div = document.createElement('div'); div.dataset.domain = domain;
   div.className = 'bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center justify-between';
-  div.innerHTML = `<div><div class="font-bold text-sm">${domain}</div><div class="status text-[11px] text-zinc-500"><i class="fas fa-spinner fa-spin mr-1"></i>checking...</div></div><div class="flex gap-2"><button class="copyBtn bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs"><i class="fas fa-copy"></i></button><a class="buyBtn hidden bg-emerald-500 text-black px-3 py-1.5 rounded-lg text-xs font-bold" target="_blank">Buy</a><button class="powerBtn hidden bg-zinc-800 border border-emerald-500 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold">Washa 🔥</button></div>`;
+  div.innerHTML = `<div><div class="font-bold text-sm">${domain}</div><div class="status text-[11px] text-zinc-500"><i class="fas fa-spinner fa-spin mr-1"></i>checking...</div></div><div class="flex gap-2"><button class="copyBtn bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs"><i class="fas fa-copy"></i></button><a class="buyBtn hidden bg-emerald-500 text-black px-3 py-1.5 rounded-lg text-xs font-bold" target="_blank">Buy</a><button class="powerBtn hidden bg-emerald-500 text-black px-3 py-1.5 rounded-lg text-xs font-bold">Washa 🔥</button></div>`;
   div.querySelector('.copyBtn').onclick = () => { navigator.clipboard.writeText(domain); const b=div.querySelector('.copyBtn'); b.innerHTML='<i class="fas fa-check"></i>'; setTimeout(()=>b.innerHTML='<i class="fas fa-copy"></i>',1200); };
   div.querySelector('.powerBtn').onclick = () => powerOn(domain);
   return div;
 }
-
 function applyResult(div, res){
-  const status = div.querySelector('.status'); const buy = div.querySelector('.buyBtn'); const powerBtn = div.querySelector('.powerBtn'); const domain = div.dataset.domain; div.dataset.state = res.state;
+  const status = div.querySelector('.status'); const buy = div.querySelector('.buyBtn'); const powerBtn = div.querySelector('.powerBtn'); div.dataset.state = res.state;
   if (res.state === 'powered') {
-    status.innerHTML = `<span class="text-emerald-400">🔥 POWERED ACTIVE - owned by ${res.owner}</span> <span class="text-zinc-500">• ${res.date}</span>`;
+    status.innerHTML = `<span class="text-emerald-400">🔥 POWERED ACTIVE - ${res.owner}</span> <span class="text-zinc-500">• ${res.date}</span>`;
     div.className = 'bg-emerald-950/40 border border-emerald-700 rounded-xl p-3 flex items-center justify-between';
+    buy.classList.add('hidden'); powerBtn.classList.add('hidden');
   } else if (res.state === 'free') {
     status.innerHTML = res.soft? '<span class="text-emerald-400">✅ Possibly available</span>' : '<span class="text-emerald-400">✅ AVAILABLE - not registered</span>';
-    buy.href = 'https://www.namecheap.com/domains/registration/results/?domain=' + domain; buy.classList.remove('hidden'); powerBtn.classList.remove('hidden');
+    buy.href = 'https://www.namecheap.com/domains/registration/results/?domain=' + div.dataset.domain; buy.classList.remove('hidden'); powerBtn.classList.remove('hidden');
     div.className = 'bg-emerald-950/30 border border-emerald-800 rounded-xl p-3 flex items-center justify-between';
   } else if (res.state === 'taken') {
     status.innerHTML = '<span class="text-red-400">❌ Taken externally</span>' + (res.expires? ' <span class="text-zinc-500">• expires ' + res.expires + '</span>' : ''); div.style.opacity = '0.5';
   } else {
-    status.innerHTML = '<span class="text-zinc-400">⚠️ Check failed - manual check</span>'; buy.textContent = 'Check'; buy.href = 'https://www.namecheap.com/domains/registration/results/?domain=' + domain; buy.classList.remove('hidden');
+    status.innerHTML = '<span class="text-zinc-400">⚠️ Check failed</span>'; buy.textContent = 'Check'; buy.href = 'https://www.namecheap.com/domains/registration/results/?domain=' + div.dataset.domain; buy.classList.remove('hidden');
   }
   applyFilter();
 }
-
 function powerOn(name){
-  const owner = prompt('Owner name for ' + name + ' :') || 'Client';
-  const db = getDB(); if(db.find(d=>d.name===name)) return alert('Already powered!');
-  db.push({ name, owner, date: new Date().toLocaleDateString() }); saveDB(db);
-  alert(name + ' POWERED ON! 🔥 Saved in internal registry.');
-  document.getElementById('gen').click();
+  const db = getDB();
+  if(db.find(d=>d.name===name)){ alert(name + ' tayari imewashwa kwa Powered!'); return; }
+  const newEntry = { name: name, owner: 'Mtaani Client', date: new Date().toLocaleString() };
+  db.push(newEntry);
+  localStorage.setItem(DB_KEY, JSON.stringify(db));
+  renderPowered();
+  // Instant UI update
+  const rows = document.querySelectorAll('#results > div');
+  rows.forEach(r => {
+    if(r.dataset.domain === name){
+      r.querySelector('.status').innerHTML = '<span class="text-emerald-400">🔥 POWERED ON! Imehifadhiwa</span>';
+      r.className = 'bg-emerald-950/60 border-2 border-emerald-400 rounded-xl p-3 flex items-center justify-between';
+      r.querySelector('.powerBtn').classList.add('hidden');
+      r.querySelector('.buyBtn').classList.add('hidden');
+    }
+  });
+  if(navigator.vibrate) navigator.vibrate([100,50,100]);
 }
 function renderPowered(){
   const db = getDB(); const el = document.getElementById('poweredList');
   if(!db.length) el.innerHTML = '<div class="text-[11px] text-zinc-600">No powered domains yet. Power one!</div>';
-  else el.innerHTML = db.map(d=>`<div class="bg-black border border-zinc-800 rounded-lg p-2 flex justify-between items-center"><span class="text-xs font-bold">${d.name}<br><span class="text-[10px] text-zinc-500">${d.owner} • ${d.date}</span></span><span class="text-[10px] bg-emerald-500 text-black px-2 py-1 rounded-full font-bold">POWERED</span></div>`).join('');
+  else el.innerHTML = db.map(d=>`<div class="bg-black border border-emerald-900 rounded-lg p-2 flex justify-between items-center"><span class="text-xs font-bold">${d.name}<br><span class="text-[10px] text-zinc-500">${d.owner} • ${d.date}</span></span><div class="flex gap-2"><span class="text-[10px] bg-emerald-500 text-black px-2 py-1 rounded-full font-bold">POWERED</span><button onclick="removePowered('${d.name}')" class="text-[10px] bg-red-900 text-red-300 px-2 py-1 rounded-full">X</button></div></div>`).join('');
 }
-function applyFilter(){ const only = document.getElementById('onlyFree').checked; document.querySelectorAll('#results > div').forEach(d => { d.style.display = (only && d.dataset.state && d.dataset.state!== 'free')? 'none' : ''; }); }
+function removePowered(name){ if(!confirm('Futa '+name+'?')) return; let db=getDB(); db=db.filter(d=>d.name!==name); localStorage.setItem(DB_KEY, JSON.stringify(db)); renderPowered(); }
+function applyFilter(){ const only = document.getElementById('onlyFree').checked; document.querySelectorAll('#results > div').forEach(d => { if(only && d.dataset.state && d.dataset.state!== 'free'){ d.style.display='none'; } else { d.style.display=''; } }); }
 document.getElementById('onlyFree').onchange = applyFilter;
 document.getElementById('gen').onclick = async () => {
   const input = document.getElementById('idea').value; const gh = document.getElementById('github').value;
@@ -129,7 +118,7 @@ document.getElementById('gen').onclick = async () => {
   const rows = names.map(n => { const d = row(n); results.appendChild(d); return d; });
   let free = 0, done = 0; summary.textContent = 'Checking ' + names.length + ' names...';
   const queue = rows.slice();
-  async function worker(){ while (queue.length) { const div = queue.shift(); const res = await checkDomain(div.dataset.domain); applyResult(div, res); done++; if (res.state === 'free') free++; summary.textContent = done < names.length? `Checked ${done}/${names.length} • free: ${free} • powered: ${getDB().length}` : `Done ✅ Free: ${free} / ${names.length} • Powered Registry: ${getDB().length}`; } }
+  async function worker(){ while (queue.length) { const div = queue.shift(); const res = await checkDomain(div.dataset.domain); applyResult(div, res); done++; if (res.state === 'free') free++; summary.textContent = done < names.length? `Checked ${done}/${names.length} • free: ${free} • powered: ${getDB().length}` : `Done ✅ Free: ${free} / ${names.length} • Powered: ${getDB().length}`; } }
   await Promise.all([worker(), worker(), worker()]);
 };
 renderPowered();
